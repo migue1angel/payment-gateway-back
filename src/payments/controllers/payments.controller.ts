@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { PaypalService } from '../services/paypal.service';
+import { CreatePlanDto } from '../dto/create-plan.dto';
 
 @Controller('payments')
 export class PaymentsController {
@@ -31,7 +32,13 @@ export class PaymentsController {
   }
 
   @Post('paypal/plan')
-  async createPlan(@Body('product') productId: string) {
-    return await this.paypalService.createPlan(productId);
+  async createPlan(@Body() createPlanDto: CreatePlanDto) {
+    return await this.paypalService.createPlan(createPlanDto);
+  }
+
+  @Get('paypal/plans')
+  async getPlans() {
+    const accessToken = await this.paypalService.getAccessToken();
+    return await this.paypalService.getPlans(accessToken);
   }
 }

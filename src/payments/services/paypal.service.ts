@@ -12,6 +12,7 @@ import { DonationsService } from './donations.service';
 import { PayPalResponse } from 'src/models/paypal-response';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { CreatePlanDto } from '../dto/create-plan.dto';
 
 @Injectable()
 export class PaypalService {
@@ -140,57 +141,68 @@ export class PaypalService {
     return product.data;
   }
 
-  async createPlan(productId: string) {
+  async createPlan(createPlanDto: CreatePlanDto) {
     const accessToken = await this.getAccessToken();
-    console.log(accessToken);
+    const plans = await this.getPlans(accessToken);
 
-    const plan = await firstValueFrom(
-      this.httpService.post(
-        `${this.basePaypalApiUrl}/billing/plans`,
-        {
-          product_id: productId,
-          name: 'Video Streaming Service Plan',
-          description: 'Video Streaming Service basic plan',
-          status: 'ACTIVE',
-          billing_cycles: [
-            {
-              frequency: {
-                interval_unit: 'MONTH', // Unidad de tiempo del intervalo (meses)
-                interval_count: 1, // Cantidad de unidades de tiempo por intervalo (1 mes)
-              },
-              tenure_type: 'REGULAR', // Tipo de ciclo (REGULAR indica un ciclo regular)
-              sequence: 1, // Secuencia del ciclo (1er ciclo)
-              total_cycles: 0, // Número total de ciclos (0 indica indefinido)
-              pricing_scheme: {
-                fixed_price: {
-                  value: '10', // Precio fijo del ciclo (10 USD)
-                  currency_code: 'USD', // Código de la moneda (USD)
-                },
-                // No incluyas setup_fee si no deseas cobrar una tarifa de instalación
-              },
-            },
-          ],
-          payment_preferences: {
-            payment_failure_threshold: 3, // Umbral de fallos de pago (3 intentos)
-          },
-          taxes: {
-            percentage: '10', // Porcentaje de impuestos (10%)
-            inclusive: false, // Impuestos no incluidos en el precio
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken.access_token}`, // Token de acceso para la autenticación
-            'Content-Type': 'application/json', // Tipo de contenido de la solicitud
-            Accept: 'application/json', // Aceptar respuesta en formato JSON
-            'PayPal-Request-Id': `${Date.now().toString()}`, // ID de la solicitud para evitar duplicados
-            Prefer: 'return=representation', // Preferencia de respuesta
-          },
-        },
-      ),
+    const existingPlan = plans.find(
+      (plan: any) =>
+        plan.description ===
+        `Donación mensual de $${createPlanDto.amount} para Planting Future`,
     );
 
-    return plan.data;
+    if (existingPlan) return { id: existingPlan.id };
+
+    try {
+      const plan = await firstValueFrom(
+        this.httpService.post(
+          `${this.basePaypalApiUrl}/billing/plans`,
+          {
+            product_id: 'PROD-98C99648K12456828',
+            name: 'Donación Mensual para Planting Future',
+            description: `Donación mensual de $${createPlanDto.amount} para Planting Future`,
+            status: 'ACTIVE',
+            billing_cycles: [
+              {
+                frequency: {
+                  interval_unit: 'MONTH', // Unidad de tiempo del intervalo (meses)
+                  interval_count: 1, // Cantidad de unidades de tiempo por intervalo (1 mes)
+                },
+                tenure_type: 'REGULAR', // Tipo de ciclo (REGULAR indica un ciclo regular)
+                sequence: 1,
+                total_cycles: 0, // Número total de ciclos (0 indica indefinido)
+                pricing_scheme: {
+                  fixed_price: {
+                    value: createPlanDto.amount.toString(),
+                    currency_code: createPlanDto.currency,
+                  },
+                },
+              },
+            ],
+            payment_preferences: {
+              payment_failure_threshold: 3, // Umbral de fallos de pago (3 intentos)
+            },
+            taxes: {
+              percentage: '10', // Porcentaje de impuestos (10%)
+              inclusive: false, // Impuestos no incluidos en el precio
+            },
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'PayPal-Request-Id': `${Date.now().toString()}`,
+              Prefer: 'return=representation',
+            },
+          },
+        ),
+      );
+      return { id: plan.data.id };
+    } catch (error) {
+      console.log(error);
+      throw new Error(error.message);
+    }
   }
 
   async getAccessToken() {
@@ -211,9 +223,29 @@ export class PaypalService {
           headers,
         }),
       );
-      return response.data;
+      return response.data.access_token;
     } catch (error) {
       console.log(error);
+      throw new Error(error.message);
+    }
+  }
+
+  async getPlans(accessToken: string) {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(`${this.basePaypalApiUrl}/billing/plans`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            // Prefer: 'return=representation',
+            Prefer: 'return=minimal',
+          },
+        }),
+      );
+      return response.data.plans;
+    } catch (error) {
+      console.log(error.message);
       throw new Error(error.message);
     }
   }
