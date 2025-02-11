@@ -1,208 +1,163 @@
 import { Injectable } from '@nestjs/common';
-import {
-  ApiError,
-  CheckoutPaymentIntent,
-  Client,
-  Environment,
-  OrderRequest,
-  OrdersController,
-} from '@paypal/paypal-server-sdk';
 import { envs } from 'src/config/envs';
 import { DonationsService } from './donations.service';
-import { PayPalResponse } from 'src/models/paypal-response';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
 import { CreatePlanDto } from '../dto/create-plan.dto';
+import { GetPlansResponse, Plan } from 'src/models/plans-response';
+import { HttpClientService } from './http-client.service';
+import { TokenResponse } from 'src/models/token.response';
+import { PayPalApproveResponse } from 'src/models/paypal-approve-response';
+import { SubscriptionDetailResponse } from 'src/models/subscription-detail.response';
 
 @Injectable()
 export class PaypalService {
+  private readonly basePaypalApiUrl = 'https://api-m.sandbox.paypal.com/v1';
+
   constructor(
     private readonly donationsService: DonationsService,
-    private readonly httpService: HttpService,
+    private readonly httpClientService: HttpClientService,
   ) {}
-  private readonly paypalClient = new Client({
-    clientCredentialsAuthCredentials: {
-      oAuthClientId: envs.PAYPAL_CLIENT_ID,
-      oAuthClientSecret: envs.PAYPAL_SECRET,
-    },
-    timeout: 0,
-    environment: Environment.Sandbox,
-  });
-  private readonly ordersController = new OrdersController(this.paypalClient);
-  private readonly basePaypalApiUrl = 'https://api-m.sandbox.paypal.com/v1';
+
   async createOrder(amount: number) {
-    try {
-      const orderRequest: OrderRequest = {
-        intent: CheckoutPaymentIntent.Capture,
-        purchaseUnits: [
-          {
-            amount: {
-              value: `${amount}`,
-              currencyCode: 'USD',
-            },
+    const accessToken = await this.getAccessToken();
+    const orderRequest = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          amount: {
+            currency_code: 'USD',
+            value: `${amount}`,
           },
-        ],
-      };
-      const { body } = await this.ordersController.ordersCreate({
-        body: orderRequest,
-      });
-      if (typeof body === 'string') {
-        return JSON.parse(body);
-      }
-      return body;
+        },
+      ],
+    };
+
+    try {
+      const response = await this.httpClientService.post(
+        `https://api-m.sandbox.paypal.com/v2/checkout/orders`,
+        orderRequest,
+        this.setAuthHeader(accessToken, 'minimal'),
+      );
+
+      return response;
     } catch (error) {
       console.log(error);
       throw new Error(error.message);
     }
   }
 
-  async captureOrder(orderID: string) {
-    const collect = {
-      id: orderID,
-      prefer: 'return=minimal',
-    };
-
+  async capturePayment(orderID: string) {
+    const accessToken = await this.getAccessToken();
     try {
-      const { body, ...httpResponse } =
-        await this.ordersController.ordersCapture(collect);
-      // Get more response info...
-      // const { statusCode, headers } = httpResponse;
+      const response: PayPalApproveResponse = await this.httpClientService.post(
+        `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderID}/capture`,
+        {},
+        this.setAuthHeader(accessToken, 'representation'),
+      );
 
-      if (typeof body === 'string') {
-        const data: PayPalResponse | undefined = await this.getPayment(orderID);
-        if (data) {
-          await this.donationsService.create({
-            amount: +data.purchase_units[0].amount.value,
-            date: data.create_time,
-            countryLocation: data.payer.address.country_code,
-            referenceLocation:
-              data.purchase_units[0].shipping.address.admin_area_1 ||
-              data.purchase_units[0].shipping.address.admin_area_2,
-            payerName: `${data.payer.name.given_name} ${data.payer.name.surname}`,
-            payerEmail: data.payer.email_address,
-            userId: data.payer.payer_id,
-            paypalPaymentId: data.id,
-          });
-        }
-        return JSON.parse(body);
-      }
+      await this.donationsService.create({
+        amount: +response.purchase_units[0].amount.value,
+        date: response.create_time,
+        countryLocation: response.payer.address.country_code,
+        referenceLocation:
+          response.purchase_units[0].shipping.address.admin_area_1 ??
+          response.purchase_units[0].shipping.address.admin_area_2,
+        payerName: `${response.payer.name.given_name} ${response.payer.name.surname}`,
+        payerEmail: response.payer.email_address,
+        userId: response.payer.payer_id,
+        paypalPaymentId: response.id,
+      });
+
+      return response;
     } catch (error) {
       console.log(error);
-
-      if (error instanceof ApiError) {
-        throw new Error(error.message);
-      }
-    }
-  }
-
-  async getPayment(orderID: string) {
-    const collect = {
-      id: orderID,
-      prefer: 'return=minimal',
-    };
-
-    try {
-      const { body, ...httpResponse } =
-        await this.ordersController.ordersGet(collect);
-      if (typeof body === 'string') {
-        const response: PayPalResponse = JSON.parse(body);
-        return response;
-      }
-      return;
-    } catch (error) {
-      console.log(error);
+      throw new Error(error.message);
     }
   }
 
   async createProduct() {
     const accessToken = await this.getAccessToken();
-    const headers = {
-      Authorization: `Bearer ${accessToken.access_token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'PayPal-Request-Id': `${Date.now().toString()}`,
-      Prefer: 'return=representation',
-    };
-    const product = await firstValueFrom(
-      this.httpService.post(
-        `${this.basePaypalApiUrl}/catalogs/products`,
-        {
-          name: 'Donation',
-          type: 'SERVICE',
-          category: 'SOFTWARE',
-          description: 'Donation for the organization',
-          // image_url: 'https://example.com/image.jpg', // Optional
-          // home_url: 'https://example.com/home', // Optional
-        },
-        { headers },
-      ),
+    return await this.httpClientService.post(
+      `${this.basePaypalApiUrl}/catalogs/products`,
+      {
+        name: 'Donation',
+        type: 'SERVICE',
+        category: 'SOFTWARE',
+        description: 'Donation for the organization',
+      },
+      this.setAuthHeader(accessToken, 'representation'),
     );
+  }
 
-    return product.data;
+  async findExistingPlan(
+    accessToken: string,
+    amount: number,
+    currency: string,
+  ) {
+    const plans = await this.getPlans(accessToken);
+    return plans.find(
+      (plan) =>
+        plan.billing_cycles[0].pricing_scheme.fixed_price.value ===
+        amount.toFixed(1),
+    );
   }
 
   async createPlan(createPlanDto: CreatePlanDto) {
     const accessToken = await this.getAccessToken();
-    const plans = await this.getPlans(accessToken);
-
-    const existingPlan = plans.find(
-      (plan: any) =>
-        plan.description ===
-        `Donación mensual de $${createPlanDto.amount} para Planting Future`,
+    const existingPlan = await this.findExistingPlan(
+      accessToken,
+      createPlanDto.amount,
+      createPlanDto.currency,
     );
 
-    if (existingPlan) return { id: existingPlan.id };
+    if (existingPlan) return { id: existingPlan.id, message: 'Plan exists' };
 
-    try {
-      const plan = await firstValueFrom(
-        this.httpService.post(
-          `${this.basePaypalApiUrl}/billing/plans`,
+    const response = await this.httpClientService.post(
+      `${this.basePaypalApiUrl}/billing/plans`,
+      {
+        product_id: 'PROD-98C99648K12456828',
+        name: 'Donación Planting Future',
+        description: `Donación mensual para Planting Future`,
+        status: 'ACTIVE',
+        billing_cycles: [
           {
-            product_id: 'PROD-98C99648K12456828',
-            name: 'Donación Mensual para Planting Future',
-            description: `Donación mensual de $${createPlanDto.amount} para Planting Future`,
-            status: 'ACTIVE',
-            billing_cycles: [
-              {
-                frequency: {
-                  interval_unit: 'MONTH', // Unidad de tiempo del intervalo (meses)
-                  interval_count: 1, // Cantidad de unidades de tiempo por intervalo (1 mes)
-                },
-                tenure_type: 'REGULAR', // Tipo de ciclo (REGULAR indica un ciclo regular)
-                sequence: 1,
-                total_cycles: 0, // Número total de ciclos (0 indica indefinido)
-                pricing_scheme: {
-                  fixed_price: {
-                    value: createPlanDto.amount.toString(),
-                    currency_code: createPlanDto.currency,
-                  },
-                },
+            frequency: { interval_unit: 'MONTH', interval_count: 1 },
+            tenure_type: 'REGULAR',
+            sequence: 1,
+            total_cycles: 0,
+            pricing_scheme: {
+              fixed_price: {
+                value: createPlanDto.amount.toString(),
+                currency_code: createPlanDto.currency,
               },
-            ],
-            payment_preferences: {
-              payment_failure_threshold: 3, // Umbral de fallos de pago (3 intentos)
-            },
-            taxes: {
-              percentage: '10', // Porcentaje de impuestos (10%)
-              inclusive: false, // Impuestos no incluidos en el precio
             },
           },
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-              'PayPal-Request-Id': `${Date.now().toString()}`,
-              Prefer: 'return=representation',
-            },
-          },
-        ),
-      );
-      return { id: plan.data.id };
-    } catch (error) {
-      console.log(error);
-      throw new Error(error.message);
+        ],
+        payment_preferences: { payment_failure_threshold: 3 },
+        taxes: { percentage: '10', inclusive: false },
+      },
+      this.setAuthHeader(accessToken),
+    );
+
+    return response;
+  }
+
+  async captureSubscription(subscriptionId: string) {
+    const accessToken = await this.getAccessToken();
+    const subscriptionDetail:SubscriptionDetailResponse = await this.httpClientService.get(
+      `${this.basePaypalApiUrl}/billing/subscriptions/${subscriptionId}`,
+      this.setAuthHeader(accessToken, 'representation'),
+    );
+    if (subscriptionDetail) {
+    
     }
+  }
+
+  async getPlans(accessToken: string): Promise<Plan[]> {
+    const response = await this.httpClientService.get<GetPlansResponse>(
+      `${this.basePaypalApiUrl}/billing/plans`,
+      this.setAuthHeader(accessToken, 'representation'),
+    );
+    return response.plans;
   }
 
   async getAccessToken() {
@@ -213,40 +168,26 @@ export class PaypalService {
       Authorization: `Basic ${auth}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     };
-    // const body = 'grant_type=client_credentials';
-    const body = new URLSearchParams({
-      grant_type: 'client_credentials',
-    });
-    try {
-      const response = await firstValueFrom(
-        this.httpService.post(`${this.basePaypalApiUrl}/oauth2/token`, body, {
-          headers,
-        }),
-      );
-      return response.data.access_token;
-    } catch (error) {
-      console.log(error);
-      throw new Error(error.message);
-    }
+    const body = new URLSearchParams({ grant_type: 'client_credentials' });
+
+    const response = await this.httpClientService.post<TokenResponse>(
+      `${this.basePaypalApiUrl}/oauth2/token`,
+      body,
+      headers,
+    );
+    return response.access_token;
   }
 
-  async getPlans(accessToken: string) {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get(`${this.basePaypalApiUrl}/billing/plans`, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            // Prefer: 'return=representation',
-            Prefer: 'return=minimal',
-          },
-        }),
-      );
-      return response.data.plans;
-    } catch (error) {
-      console.log(error.message);
-      throw new Error(error.message);
-    }
+  private setAuthHeader(
+    accessToken: string,
+    prefer: 'minimal' | 'representation' = 'minimal',
+  ) {
+    return {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'PayPal-Request-Id': `${Date.now().toString()}`,
+      Prefer: `return=${prefer}`,
+    };
   }
 }

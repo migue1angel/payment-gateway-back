@@ -1,9 +1,12 @@
 export interface PayPalApproveResponse {
     id:             string;
+    intent:         string;
     status:         string;
     payment_source: PaymentSource;
     purchase_units: PurchaseUnit[];
     payer:          Payer;
+    create_time:    Date;
+    update_time:    Date;
     links:          Link[];
 }
 
@@ -43,8 +46,20 @@ export interface Paypal {
 
 export interface PurchaseUnit {
     reference_id: string;
+    amount:       Amount;
+    payee:        Payee;
     shipping:     Shipping;
     payments:     Payments;
+}
+
+export interface Amount {
+    currency_code: string;
+    value:         string;
+}
+
+export interface Payee {
+    email_address: string;
+    merchant_id:   string;
 }
 
 export interface Payments {
@@ -61,11 +76,6 @@ export interface Capture {
     links:                       Link[];
     create_time:                 Date;
     update_time:                 Date;
-}
-
-export interface Amount {
-    currency_code: string;
-    value:         string;
 }
 
 export interface SellerProtection {

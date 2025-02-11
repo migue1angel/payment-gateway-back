@@ -5,6 +5,11 @@ interface EnvsSchema {
   PORT: number;
   PAYPAL_SECRET: string;
   PAYPAL_CLIENT_ID: string;
+  DB_HOST: string;
+  DB_PORT: number;
+  DB_USERNAME: string;
+  DB_PASSWORD: string;
+  DB_DATABASE: string;
 }
 
 const envsSchema = joi
@@ -12,6 +17,11 @@ const envsSchema = joi
     PORT: joi.number().required(),
     PAYPAL_CLIENT_ID: joi.string().required(),
     PAYPAL_SECRET: joi.string().required(),
+    DB_HOST: joi.string().required(),
+    DB_PORT: joi.number().required(),
+    DB_USERNAME: joi.string().required(),
+    DB_PASSWORD: joi.string().required(),
+    DB_DATABASE: joi.string().required(),
   })
   .unknown(true);
 
@@ -25,6 +35,11 @@ if (error) {
 
 export const envs: EnvsSchema = {
   PORT: value.PORT,
-  PAYPAL_CLIENT_ID:value.PAYPAL_CLIENT_ID,
-  PAYPAL_SECRET:value.PAYPAL_SECRET,
+  PAYPAL_CLIENT_ID: value.PAYPAL_CLIENT_ID,
+  PAYPAL_SECRET: value.PAYPAL_SECRET,
+  DB_HOST: value.DB_HOST,
+  DB_PORT: value.DB_PORT,
+  DB_USERNAME: value.DB_USERNAME,
+  DB_PASSWORD: value.DB_PASSWORD,
+  DB_DATABASE: value.DB_DATABASE,
 };

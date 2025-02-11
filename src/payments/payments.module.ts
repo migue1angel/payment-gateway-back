@@ -5,10 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DonationEntity } from './entities/donation.entity';
 import { DonationsService } from './services/donations.service';
 import { HttpModule } from '@nestjs/axios';
+import { HttpClientService } from './services/http-client.service';
 
 @Module({
-  imports: [HttpModule,TypeOrmModule.forFeature([DonationEntity])],
+  imports: [HttpModule, TypeOrmModule.forFeature([DonationEntity])],
   controllers: [PaymentsController],
-  providers: [PaypalService, DonationsService],
+  providers: [PaypalService, DonationsService, HttpClientService],
 })
 export class PaymentsModule {}

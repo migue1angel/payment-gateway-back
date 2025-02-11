@@ -11,9 +11,15 @@ export class DonationEntity {
   amount: number;
 
   @Column({
+    name: 'start_date',
     type: 'timestamp',
   })
-  date: Date;
+  startDate: Date;
+
+  @Column({
+    name: 'currency',
+  })
+  currency: string;
 
   @Column({
     name: 'user_id',
@@ -43,5 +49,24 @@ export class DonationEntity {
   @Column({
     name: 'paypal_payment_id',
   })
-  paypalPaymentId: string;
+  paypalId: string;
+
+  @Column({
+    name: 'is_subscription',
+    default: false,
+  })
+  isSubscription: boolean;
+
+  @Column({
+    name: 'is_active',
+    nullable: true,
+  })
+  isActive: boolean;
+
+  @Column({
+    name: 'end_date',
+    type: 'timestamp',
+    nullable: true,
+  })
+  endDate: Date;
 }

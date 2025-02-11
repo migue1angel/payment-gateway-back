@@ -13,15 +13,15 @@ export class PaymentsController {
 
   @Get('paypal/capture/:id')
   async captureOrder(@Param('id') orderId: string) {
-    return await this.paypalService.captureOrder(orderId);
+    return await this.paypalService.capturePayment(orderId);
   }
 
-  @Get('paypal/get/:id')
-  async getPayment(@Param('id') orderId: string) {
-    return await this.paypalService.getPayment(orderId);
+  @Post('paypal/capture-subscription/:id')
+  async getSubscription(@Param('id') subscriptionId: string) {
+    return await this.paypalService.captureSubscription(subscriptionId);
   }
 
-  @Get('paypal/token')
+  @Post('paypal/token')
   async getAccessToken() {
     return await this.paypalService.getAccessToken();
   }
