@@ -1,27 +1,51 @@
-import { IsNotEmpty } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, IsDateString } from 'class-validator';
 
 export class CreateDonationDto {
   @IsNotEmpty()
+  @IsNumber()
   amount: number;
 
   @IsNotEmpty()
-  date: Date;
+  @IsDateString()
+  startDate: Date;
 
   @IsNotEmpty()
-  referenceLocation: string;
+  @IsString()
+  currency: string;
 
   @IsNotEmpty()
-  countryLocation: string;
-
-  @IsNotEmpty()
-  payerName: string;
-
-  @IsNotEmpty()
-  payerEmail: string;
-
-  @IsNotEmpty()
+  @IsString()
   userId: string;
 
   @IsNotEmpty()
-  paypalPaymentId: string;
+  @IsString()
+  countryLocation: string;
+
+  @IsNotEmpty()
+  @IsString()
+  referenceLocation: string;
+
+  @IsNotEmpty()
+  @IsString()
+  payerName: string;
+
+  @IsNotEmpty()
+  @IsString()
+  payerEmail: string;
+
+  @IsNotEmpty()
+  @IsString()
+  paypalId: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isSubscription?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: Date;
 }

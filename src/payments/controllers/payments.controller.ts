@@ -1,14 +1,15 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { PaypalService } from '../services/paypal.service';
 import { CreatePlanDto } from '../dto/create-plan.dto';
+import { PaymentDto } from '../dto/payment.dto';
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private paypalService: PaypalService) {}
 
   @Post('paypal/create')
-  async createOrder(@Body('amount') amount: number) {
-    return await this.paypalService.createOrder(amount);
+  async createOrder(@Body() paymentDto:PaymentDto) {
+    return await this.paypalService.createOrder(paymentDto.amount, paymentDto.currency);
   }
 
   @Get('paypal/capture/:id')

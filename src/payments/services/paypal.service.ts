@@ -17,14 +17,14 @@ export class PaypalService {
     private readonly httpClientService: HttpClientService,
   ) {}
 
-  async createOrder(amount: number) {
+  async createOrder(amount: number, currency: string) {
     const accessToken = await this.getAccessToken();
     const orderRequest = {
       intent: 'CAPTURE',
       purchase_units: [
         {
           amount: {
-            currency_code: 'USD',
+            currency_code: currency,
             value: `${amount}`,
           },
         },
@@ -55,16 +55,18 @@ export class PaypalService {
       );
 
       await this.donationsService.create({
+        currency: response.purchase_units[0].amount.currency_code,
         amount: +response.purchase_units[0].amount.value,
-        date: response.create_time,
-        countryLocation: response.payer.address.country_code,
+        startDate: response.create_time,
+        countryLocation:
+          response.purchase_units[0].shipping.address.country_code,
         referenceLocation:
-          response.purchase_units[0].shipping.address.admin_area_1 ??
-          response.purchase_units[0].shipping.address.admin_area_2,
-        payerName: `${response.payer.name.given_name} ${response.payer.name.surname}`,
+          response.purchase_units[0].shipping.address.admin_area_2 ??
+          response.purchase_units[0].shipping.address.admin_area_1,
+        payerName: `${response.payment_source.paypal.name.given_name} ${response.payment_source.paypal.name.surname}`,	
         payerEmail: response.payer.email_address,
         userId: response.payer.payer_id,
-        paypalPaymentId: response.id,
+        paypalId: response.id,
       });
 
       return response;
@@ -81,7 +83,7 @@ export class PaypalService {
       {
         name: 'Donation',
         type: 'SERVICE',
-        category: 'SOFTWARE',
+        category: 'NON_TANGIBLE',
         description: 'Donation for the organization',
       },
       this.setAuthHeader(accessToken, 'representation'),
@@ -97,7 +99,9 @@ export class PaypalService {
     return plans.find(
       (plan) =>
         plan.billing_cycles[0].pricing_scheme.fixed_price.value ===
-        amount.toFixed(1),
+          amount.toFixed(1) &&
+        plan.billing_cycles[0].pricing_scheme.fixed_price.currency_code ===
+          currency,
     );
   }
 
@@ -137,18 +141,35 @@ export class PaypalService {
       },
       this.setAuthHeader(accessToken),
     );
-
     return response;
   }
 
   async captureSubscription(subscriptionId: string) {
     const accessToken = await this.getAccessToken();
-    const subscriptionDetail:SubscriptionDetailResponse = await this.httpClientService.get(
-      `${this.basePaypalApiUrl}/billing/subscriptions/${subscriptionId}`,
-      this.setAuthHeader(accessToken, 'representation'),
-    );
+    const subscriptionDetail: SubscriptionDetailResponse =
+      await this.httpClientService.get(
+        `${this.basePaypalApiUrl}/billing/subscriptions/${subscriptionId}`,
+        this.setAuthHeader(accessToken, 'representation'),
+      );
     if (subscriptionDetail) {
-    
+      await this.donationsService.create({
+        amount: +subscriptionDetail.billing_info.last_payment.amount.value,
+        currency:
+          subscriptionDetail.billing_info.last_payment.amount.currency_code,
+        startDate: subscriptionDetail.create_time,
+        countryLocation:
+          subscriptionDetail.subscriber.shipping_address.address.country_code,
+        referenceLocation:
+          subscriptionDetail.subscriber.shipping_address.address.admin_area_2 ??
+          subscriptionDetail.subscriber.shipping_address.address.admin_area_1,
+        payerName: `${subscriptionDetail.subscriber.name.given_name} ${subscriptionDetail.subscriber.name.surname}`,
+        payerEmail: subscriptionDetail.subscriber.email_address,
+        userId: subscriptionDetail.subscriber.payer_id,
+        paypalId: subscriptionDetail.id,
+        isSubscription: true,
+        isActive: true,
+      });
+      return subscriptionDetail;
     }
   }
 

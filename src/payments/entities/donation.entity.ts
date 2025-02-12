@@ -47,7 +47,7 @@ export class DonationEntity {
   payerEmail: string;
 
   @Column({
-    name: 'paypal_payment_id',
+    name: 'paypal_id',
   })
   paypalId: string;
 

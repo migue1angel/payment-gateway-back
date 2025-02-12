@@ -1,3 +1,8 @@
+import { IsNotEmpty } from 'class-validator';
+
 export class PaymentDto {
-  amount: string;
+  @IsNotEmpty()
+  amount: number;
+  @IsNotEmpty()
+  currency: string;
 }
