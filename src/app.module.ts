@@ -3,8 +3,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PaymentsModule } from './payments/payments.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DonationEntity } from './payments/entities/donation.entity';
+import { RecurringDonationEntity } from './payments/entities/recurring-donation.entity';
 import { envs } from './config/envs';
+import { SingleDonationEntity } from './payments/entities/single-donation.entity';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { envs } from './config/envs';
       username: envs.DB_USERNAME,
       password: envs.DB_PASSWORD,
       database: envs.DB_DATABASE,
-      entities: [DonationEntity],
+      entities: [RecurringDonationEntity, SingleDonationEntity],
       synchronize: true,
       // dropSchema: true,
     }),

@@ -14,7 +14,7 @@ export class PaymentsController {
 
   @Get('paypal/capture/:id')
   async captureOrder(@Param('id') orderId: string) {
-    return await this.paypalService.capturePayment(orderId);
+    return await this.paypalService.captureOrder(orderId);
   }
 
   @Post('paypal/capture-subscription/:id')

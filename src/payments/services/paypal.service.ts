@@ -4,9 +4,9 @@ import { DonationsService } from './donations.service';
 import { CreatePlanDto } from '../dto/create-plan.dto';
 import { GetPlansResponse, Plan } from 'src/models/plans-response';
 import { HttpClientService } from './http-client.service';
-import { TokenResponse } from 'src/models/token.response';
+import { TokenResponse } from 'src/models/token-response';
 import { PayPalApproveResponse } from 'src/models/paypal-approve-response';
-import { SubscriptionDetailResponse } from 'src/models/subscription-detail.response';
+import { SubscriptionDetailResponse } from 'src/models/subscription-detail-response';
 
 @Injectable()
 export class PaypalService {
@@ -45,7 +45,7 @@ export class PaypalService {
     }
   }
 
-  async capturePayment(orderID: string) {
+  async captureOrder(orderID: string) {
     const accessToken = await this.getAccessToken();
     try {
       const response: PayPalApproveResponse = await this.httpClientService.post(
@@ -54,10 +54,10 @@ export class PaypalService {
         this.setAuthHeader(accessToken, 'representation'),
       );
 
-      await this.donationsService.create({
+      await this.donationsService.createSingleDonation({
         currency: response.purchase_units[0].amount.currency_code,
         amount: +response.purchase_units[0].amount.value,
-        startDate: response.create_time,
+        date: response.create_time,
         countryLocation:
           response.purchase_units[0].shipping.address.country_code,
         referenceLocation:
@@ -66,7 +66,7 @@ export class PaypalService {
         payerName: `${response.payment_source.paypal.name.given_name} ${response.payment_source.paypal.name.surname}`,	
         payerEmail: response.payer.email_address,
         userId: response.payer.payer_id,
-        paypalId: response.id,
+        paypalOrderId: response.id,
       });
 
       return response;
@@ -152,7 +152,7 @@ export class PaypalService {
         this.setAuthHeader(accessToken, 'representation'),
       );
     if (subscriptionDetail) {
-      await this.donationsService.create({
+      await this.donationsService.createRecurringDonation({
         amount: +subscriptionDetail.billing_info.last_payment.amount.value,
         currency:
           subscriptionDetail.billing_info.last_payment.amount.currency_code,
@@ -165,8 +165,7 @@ export class PaypalService {
         payerName: `${subscriptionDetail.subscriber.name.given_name} ${subscriptionDetail.subscriber.name.surname}`,
         payerEmail: subscriptionDetail.subscriber.email_address,
         userId: subscriptionDetail.subscriber.payer_id,
-        paypalId: subscriptionDetail.id,
-        isSubscription: true,
+        paypalSubscriptionId: subscriptionDetail.id,
         isActive: true,
       });
       return subscriptionDetail;

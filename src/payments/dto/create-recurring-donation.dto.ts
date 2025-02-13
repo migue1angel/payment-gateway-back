@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, IsDateString } from 'class-validator';
 
-export class CreateDonationDto {
+export class CreateRecurringDonationDto {
   @IsNotEmpty()
   @IsNumber()
   amount: number;
@@ -35,11 +35,7 @@ export class CreateDonationDto {
 
   @IsNotEmpty()
   @IsString()
-  paypalId: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isSubscription?: boolean;
+  paypalSubscriptionId: string;
 
   @IsOptional()
   @IsBoolean()

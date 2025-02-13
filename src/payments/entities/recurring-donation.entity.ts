@@ -1,7 +1,7 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity('donations')
-export class DonationEntity {
+@Entity('recurring_donations')
+export class RecurringDonationEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -47,19 +47,13 @@ export class DonationEntity {
   payerEmail: string;
 
   @Column({
-    name: 'paypal_id',
+    name: 'paypal_subscription_id',
   })
-  paypalId: string;
-
-  @Column({
-    name: 'is_subscription',
-    default: false,
-  })
-  isSubscription: boolean;
+  paypalSubscriptionId: string;
 
   @Column({
     name: 'is_active',
-    nullable: true,
+    default: true,
   })
   isActive: boolean;
 
